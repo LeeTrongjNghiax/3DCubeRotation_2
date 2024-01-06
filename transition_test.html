@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <style>
+        body {
+            background: #121212;
+            color: #eeeeee;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+        }
+        #cube {
+            width: 100px;
+            height: 100px;
+            /* transition: transform 4s ease-in; */
+            animation: x 1s infinite;
+        }
+        #cube::after {
+            content: '';
+            display: block;
+            width: 100px;
+            height: 100px;
+            background: red;
+            /* transition: transform 4s ease-out; */
+            animation: y 1s infinite;
+        }
+        #cube:hover {
+            transform: translateX(500px);
+        }
+        @keyframes x {
+            50% {
+                animation-timing-function: ease-in;
+                transform: translateX(500px);
+            }
+        }
+        @keyframes y {
+            0% {
+                animation-timing-function: ease-out;
+                transform: translateY(0px);
+            }
+            50% {
+                animation-timing-function: ease-out;
+                transform: translateY(-250px);
+            }
+            100% {
+                animation-timing-function: ease-out;
+                transform: translateY(0px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="cube"></div>
+</body>
+</html>
