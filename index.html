@@ -4,12 +4,457 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Cube</title>
-
-    <link rel="stylesheet" href="style.css">
     
-    <script src="function.js" async defer></script>
-    <script src="init.js" async defer></script>
-    <script src="add_event_listener.js" async defer></script>
+    <style>
+        /*
+            Rotation matrix (inverse rotation: just swap sign in both sine function):
+                X:
+                    1 0      0
+                    0 cos() -sin()
+                    0 sin()  cos()
+
+                Y:
+                    cos() 0 sin()
+                    0     1 0
+                    -sin() 0 cos()
+
+                Z:
+                    cos() -sin() 0
+                    sin()  cos() 0
+                    0      0     1
+
+            How to apply rotation: multiply rotation matrix to matrix want to rotate
+
+        */
+
+        :root {
+            --up-color:     #FFFFFF77;
+            --down-color:   #FFFF0077;
+            --front-color:  #00FF0077;
+            --back-color:   #0000FF77;
+            --right-color:  #FF000077;
+            --left-color:   #FFA00077;
+            --hidden-color: #00000077;
+            --face-outline: #000000;
+            --face-font-size: calc( var(--cube-size) / 4 );
+            --face-font-size: 0px;
+        }
+
+        * {
+            padding: 0;
+            margin: 0;
+            color: #eeeeee;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+        body {
+            background: #121212;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        main {
+            width: 100%;
+            height: 100vh;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #cube {
+            perspective: 10000px;
+            transform-style: preserve-3d;
+            transform: rotateX(-35deg) rotateY(-45deg);
+            /* transform: rotateX(-80deg) rotateY(0deg); */
+            /* animation: rotate 5s infinite; */
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .cubie {
+            width: var(--cube-size);
+            height: var(--cube-size);
+            transform-style: preserve-3d;
+            position: absolute;
+            /* transition: transform 0.5s; */
+            /* transition-timing-function: ease-in; */
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        @keyframes rotate {
+            0%   { transform: translateZ( calc( var(--cube-size) * -1 ) ) rotateX(-35deg) rotateY(-45deg); }
+            50%  { transform: translateZ( calc( var(--cube-size) *  1 ) ) rotatex( 360deg ) rotateY( 180deg ); }
+            100% { transform: translateZ( calc( var(--cube-size) * -1 ) ) rotateX(-35deg) rotateY(-45deg); }
+        }
+        .face {
+            position: absolute;
+            width: var(--cube-size);
+            height: var(--cube-size);
+            border: 0.5rem solid var(--face-outline);
+            font-size: var(--face-font-size);
+            -webkit-text-fill-color: black;
+            -webkit-text-stroke: 1px;
+            transform-style: preserve-3d;
+            transition: all 1s;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .U { 
+            background: var(--up-color);
+            transform: rotateX(90deg) translateZ( calc( var(--cube-size) / 2 ) );
+        }
+        .D { 
+            background: var(--down-color);
+            transform: rotateX(90deg) translateZ( calc( -1 * var(--cube-size) / 2 ) );
+        }
+        .R { 
+            background: var(--right-color);
+
+            /*  
+                1. Default matrix (D): 
+
+                    1 0 0 0
+                    0 1 0 0
+                    0 0 1 0
+                    0 0 0 1
+
+                2. Rotate 90 deg in X axis:
+
+                    Rotate Y matrix (Y):
+
+                        cos(90) 0 sin(90)
+                        0       1 0
+                        -sin(90) 0 cos(90)
+
+                    Y * D = :
+
+                        0 0 1 0 
+                        0 1 0 0 
+                        -1 0 0 0 
+                        0 0 0 1 
+
+                3. Translate {length / 2} px (100px) in X axis:
+
+                    0   0 1 0 
+                    0   1 0 0 
+                    -1   0 0 0 
+                    100 0 0 1 
+
+                4. Equivalent to transform: rotateY(90deg) translateZ( calc( var(--cube-size) / 2 ) )
+            */
+            /* transform: matrix3d( 0,   0, 1, 0, 
+                                0,   1, 0, 0, 
+                                -1,   0, 0, 0, 
+                                100, 0, 0, 1); */
+            transform: rotateY(90deg) translateZ( calc( var(--cube-size) / 2 ) );
+        }
+        .L { 
+            background: var(--left-color);
+
+            /*  
+                1. Default matrix (D): 
+
+                    1 0 0 0
+                    0 1 0 0
+                    0 0 1 0
+                    0 0 0 1
+
+                2. Rotate 90 deg in X axis:
+
+                    Rotate Y inverse matrix (-Y):
+
+                        cos(90) 0 -sin(90)
+                        0       1  0
+                        sin(90) 0  cos(90)
+
+                    -Y * D = :
+
+                        0 0 -1 0 
+                        0 1  0 0 
+                        1 0  0 0 
+                        0 0  0 1 
+
+                3. Translate {-length / 2} px (100px) in X axis:
+
+                    0   0 -1 0 
+                    0   1  0 0 
+                    1   0  0 0 
+                    -100 0  0 1 
+
+                4. Equivalent to transform: rotateY(90deg) translateZ( calc( -1 * var(--cube-size) / 2 ) )
+            */
+            /* transform: matrix3d( 0,   0, -1, 0, 
+                                0,   1,  0, 0, 
+                                1,   0,  0, 0, 
+                                -100, 0,  0, 1); */
+            transform: rotateY(90deg) translateZ( calc( -1 * var(--cube-size) / 2 ) );
+        }
+        .F { 
+            background: var(--front-color);
+
+            /*  
+                1. Default matrix (D): 
+
+                    1 0 0 0
+                    0 1 0 0
+                    0 0 1 0
+                    0 0 0 1
+
+                2. Translate {length / 2} px (100px) in Z axis:
+
+                    1 0 0   0
+                    0 1 0   0
+                    0 0 1   0
+                    0 0 100 1
+
+                4. Equivalent to transform: translateZ( calc( var(--cube-size) / 2 ) )
+            */
+            /* transform: matrix3d(1, 0, 0,   0, 
+                                0, 1, 0,   0, 
+                                0, 0, 1,   0, 
+                                0, 0, 100, 1); */
+            transform: translateZ( calc( var(--cube-size) / 2 ) );
+        }
+        .B { 
+            background: var(--back-color);
+            transform: translateZ( calc( -1 * var(--cube-size) / 2 ) )
+        }
+
+        .black {
+            background-color: var(--hidden-color);
+        }
+
+        button {
+            padding: 1rem;
+            border: 0.125rem solid white;
+            background: #121212;
+        }
+    </style>
+
+    <script>
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        const zeroPad = (num, places) => String(num).padStart(places, '0');
+
+        const degrees_to_radians = degrees => degrees * (Math.PI / 180);
+
+        const multi = (a, b) => a * b;
+
+        const number_binary_matrix = (number, matrix, expression) => matrix.map(
+            x => x.map(
+                y => expression(y, number)
+            )
+        )
+
+        const adding_matrix = (m1, m2) => {
+            let m3 = [];        
+
+            for (let i = 0; i < m1.length; i++) {
+                m3[i] = [];
+
+                for (let j = 0; j < m1[0].length; j++) {
+                    m3[i][j] = m1[i][j] + m2[i][j];
+                }
+            }
+
+            return m3;
+        }
+
+        const matrix_multiply_matrix = (m1, m2) => {
+            let m3 = [];
+
+            for (let i = 0; i < m1.length; i++)
+                m3[i] = []
+
+            for (let i = 0; i < m1.length; i++)
+                for (let j = 0; j < m2[0].length; j++) {
+                    let sum = 0;
+
+                    for (let k = 0; k < m2.length; k++)
+                        sum += m1[i][k] * m2[k][j];
+
+                    m3[i][j] = sum;
+                }
+
+            return m3;
+        }
+
+        const transpose_matrix = matrix => matrix[0].map(
+            (_, colIndex) => matrix.map(
+                row => row[colIndex]
+            )
+        );
+
+        const smaller_matrix = (matrix, i, j) => {
+            let matrix2 = [];
+
+            matrix.map((row, x) => {
+                if (x != i) {
+                    let rows = [];
+                    row.map((index, y) => {
+                        if (y != j)
+                            rows.push(index);
+                    })
+                    matrix2.push(rows);
+                }
+            });
+
+            return matrix2;
+        }
+
+        const get_determinant_of_matrix = matrix => {
+            if (matrix.length == 1) return matrix[0][0];
+            let sum = 0;
+
+            for (let i = 0; i < matrix.length; i++)
+                sum += Math.pow(-1, 1 + (i + 1)) * matrix[0][i] * get_determinant_of_matrix( smaller_matrix(matrix, 0, i) );
+
+            return sum;
+        }
+
+        const get_cofactor_matrix = matrix => {
+            let c = Array(matrix.length).fill(null).map( () => Array(matrix.length).fill(null));
+
+            matrix.map((row, i) => {
+                row.map((_, j) => {
+                    c[i][j] = Math.pow(-1, i + j) * get_determinant_of_matrix(smaller_matrix(matrix, i, j));
+                })
+            })
+            
+            return c;
+        }
+
+        const get_inversed_matrix = matrix => {
+            if ( get_determinant_of_matrix(matrix) == 0 ) return null;
+
+            return number_binary_matrix(
+                1 / get_determinant_of_matrix(matrix), 
+                transpose_matrix( get_cofactor_matrix(matrix) ), 
+                multi
+            )
+        }
+
+        const get_rotation_x_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [1, 0, 0, 0],
+                [0, Math.cos(radian), -Math.sin(radian), 0],
+                [0, Math.sin(radian),  Math.cos(radian), 0],
+                [0, 0, 0, 1],
+            ];
+        }
+
+        const get_rotation_x_inverse_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [1, 0, 0, 0],
+                [0, +Math.cos(radian).toLocaleString(), Math.sin(radian).toLocaleString(), 0],
+                [0, -Math.sin(radian).toLocaleString(), Math.cos(radian).toLocaleString(), 0],
+                [0, 0, 0, 1],
+            ];
+        }
+
+        const get_rotation_y_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [ +Math.cos(radian).toLocaleString(), 0, +Math.sin(radian).toLocaleString(), 0],
+                [0, 1, 0, 0],
+                [ -Math.sin(radian).toLocaleString(), 0, +Math.cos(radian).toLocaleString(), 0],
+                [0, 0, 0, 1],
+            ];
+        }
+
+        const get_rotation_y_inverse_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [+Math.cos(radian).toLocaleString(), 0, -Math.sin(radian).toLocaleString(), 0],
+                [0, 1, 0, 0],
+                [+Math.sin(radian).toLocaleString(), 0, +Math.cos(radian).toLocaleString(), 0],
+                [0, 0, 0, 1],
+            ];
+        }
+
+        const get_rotation_z_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [+Math.cos(radian).toLocaleString(), -Math.sin(radian).toLocaleString(), 0, 0],
+                [+Math.sin(radian).toLocaleString(), +Math.cos(radian).toLocaleString(), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ];
+        }
+
+        const get_rotation_z_inverse_matrix = degree => {
+            let radian = degrees_to_radians(degree);
+            return [
+                [+Math.cos(radian).toLocaleString(), +Math.sin(radian).toLocaleString(), 0, 0],
+                [-Math.sin(radian).toLocaleString(), +Math.cos(radian).toLocaleString(), 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 0],
+            ];
+        }
+
+        const get_translate_matrix = (x, y, z) => [
+            [ 1, 0, 0, 0 ], 
+            [ 0, 1, 0, 0 ], 
+            [ 0, 0, 1, 0 ], 
+            [ x, y, z, 1 ], 
+        ];
+
+        const get_identity_matrix = length => {
+            let result = [];
+
+            for (let i = 0; i < length; i++) {
+                result[i] = [];
+
+                for (let j = 0; j < length; j++)
+                    if (i == j) 
+                        result[i][j] = 1;
+                    else
+                        result[i][j] = 0;
+            }
+
+            return result;
+        }
+
+        const array_matrix_to_string_matrix = arr => {
+            let result = `matrix3d(`;
+
+            for (let i = 0; i < arr.length; i++) {
+                for (let j = 0; j < arr[i].length; j++) {
+                    result += `${arr[i][j]}, `;
+                }
+            }
+
+            return result.slice(0, result.length - 2) + ")";
+        }
+
+        const string_matrix_to_array_matrix = (matrix3d) => {
+            let regex = /-?\d+(?:\.\d+)?/g;
+            let array_1d = matrix3d.match(regex).splice(1);
+            let array_2d = [];
+
+            for (let i = 0; i < 4; i++) {
+                array_2d[i] = [];
+
+                for (let j = 0; j < 4; j++) {
+                    array_2d[i][j] = +array_1d[i * 4 + j];
+                }
+            }
+            
+            return array_2d;
+        }
+    </script>
 </head>
 <body>
     <h1>3D Cube</h1>
@@ -26,5 +471,325 @@
         <button id="rotate-R">R</button>
         <button id="rotate-L">L</button>
     </section>
+
+    <script>
+        const RUBIK_CUBE = document.querySelector("#cube");
+        const RUBIK_SIZE = 3;
+        const RUBIK_LENGTH = 75;
+
+        const rotate_U_button = document.querySelector("#rotate-U");
+        const rotate_D_button = document.querySelector("#rotate-D");
+        const rotate_F_button = document.querySelector("#rotate-F");
+        const rotate_B_button = document.querySelector("#rotate-B");
+        const rotate_R_button = document.querySelector("#rotate-R");
+        const rotate_L_button = document.querySelector("#rotate-L");
+
+        let start = -1 * ( RUBIK_SIZE - 1 ) / 2;
+        let end = -start;
+
+        document.documentElement.style.setProperty('--cube-size', RUBIK_LENGTH + 'px');
+
+        document.querySelector("main").style.height = RUBIK_SIZE * RUBIK_LENGTH * 2 + "px";
+
+        RUBIK_CUBE.style.width = RUBIK_SIZE * RUBIK_LENGTH + "px";
+        RUBIK_CUBE.style.height = RUBIK_SIZE * RUBIK_LENGTH + "px";
+
+        // Back to Front, Up to Down, Left to Right
+        for (let i = start; i <= end; i++) {
+            for (let j = start; j <= end; j++) {
+                for (let k = start; k <= end; k++) {
+                    // if ( i == -0.5 && j == -0.5 && k == -0.5 ) {
+                    if ( 1 ) {
+                        let U_face = document.createElement("div");
+                        U_face.innerHTML = "UP";
+                        U_face.classList.add("U");
+                        U_face.classList.add("face");
+                        if ( j >= 0 && j != end )
+                            U_face.classList.add("black");
+                        
+                        let D_face = document.createElement("div");
+                        D_face.innerHTML = "DOWN";
+                        D_face.classList.add("D");
+                        D_face.classList.add("face");
+                        if ( j <= 0 && j != end )
+                            D_face.classList.add("black");
+
+                        let F_face = document.createElement("div");
+                        F_face.innerHTML = "FRONT";
+                        F_face.classList.add("F");
+                        F_face.classList.add("face");
+                        if ( k <= 0 )
+                            F_face.classList.add("black");
+
+                        let B_face = document.createElement("div");
+                        B_face.innerHTML = "BACK";
+                        B_face.classList.add("B");
+                        B_face.classList.add("face");
+                        if ( k >= 0 )
+                            B_face.classList.add("black");
+                        
+                        let R_face = document.createElement("div");
+                        R_face.innerHTML = "RIGHT";
+                        R_face.classList.add("R");
+                        R_face.classList.add("face");
+                        if ( i <= 0 )
+                            R_face.classList.add("black");
+
+                        let L_face = document.createElement("div");
+                        L_face.innerHTML = "LEFT";
+                        L_face.classList.add("L");
+                        L_face.classList.add("face");
+                        if ( i >= 0 )
+                            L_face.classList.add("black");
+
+                        let translate_matrix = get_translate_matrix(
+                            i * RUBIK_LENGTH,
+                            j * RUBIK_LENGTH,
+                            k * RUBIK_LENGTH
+                        );
+
+                        let cubie = document.createElement("div");
+                        cubie.classList.add("cubie");
+                        cubie.appendChild( U_face );
+                        cubie.appendChild( D_face );
+                        cubie.appendChild( F_face );
+                        cubie.appendChild( B_face );
+                        cubie.appendChild( R_face );
+                        cubie.appendChild( L_face );
+                        cubie.style.transform = array_matrix_to_string_matrix( translate_matrix );
+                        cubie.dataset.x = i;
+                        cubie.dataset.y = j;
+                        cubie.dataset.z = k;
+                        // cubie.style.transformOrigin = `${50 + (100 * -i)}% ${50 + (100 * -j)}% ${50 + (100 * -k)}%`;
+                        // cubie.style.transformOrigin = `${50 + (100 * -i)}% ${50 + (100 * -j)}%`;
+                        // cubie.style.transformOrigin = "150% 150%";
+                        // cubie.style.animation = "rotate_U 5s infinite";
+                        
+                        RUBIK_CUBE.appendChild(cubie);   
+                    }
+                }
+            }
+        }
+
+        var sheet = window.document.styleSheets[0];
+        // console.log( sheet );
+    </script>
+
+    <script>
+        rotate_U_button.addEventListener("click", e => {
+            for (let i = 0; i < RUBIK_CUBE.childNodes.length; i++) {
+                let x = RUBIK_CUBE.childNodes[i].dataset.x;
+                let y = RUBIK_CUBE.childNodes[i].dataset.y;
+                let z = RUBIK_CUBE.childNodes[i].dataset.z;
+                
+                if (y == start) {
+                    let base_percent = 50;
+                    let multiply = RUBIK_SIZE - 1;
+                    let percent_x = 0;
+                    let percent_z = 0;
+
+                    if (x < 0 && z < 0) {
+                        percent_x = multiply * base_percent;
+                        percent_z = multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.x = end;
+                    } else if (x == 0 && z < 0) {
+                        percent_x = 0;
+                        percent_z = multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.x = end;
+                        RUBIK_CUBE.childNodes[i].dataset.z = start + 1;
+                    } else if (x > 0 && z < 0) {
+                        percent_x = -multiply * base_percent;
+                        percent_z = multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.z = end;
+                    } else if (x < 0 && z == 0) {
+                        percent_x = multiply * base_percent;
+                        percent_z = 0;
+                        RUBIK_CUBE.childNodes[i].dataset.x = start + 1;
+                        RUBIK_CUBE.childNodes[i].dataset.z = start;
+                    } else if (x == 0 && z == 0) {
+                        percent_x = 0;
+                        percent_z = 0;
+                        RUBIK_CUBE.childNodes[i].dataset.x = 0;
+                        RUBIK_CUBE.childNodes[i].dataset.z = 0;
+                    } else if (x > 0 && z == 0) {
+                        percent_x = -multiply * base_percent;
+                        percent_z = 0;
+                        RUBIK_CUBE.childNodes[i].dataset.x = end - 1;
+                        RUBIK_CUBE.childNodes[i].dataset.z = end;
+                    } else if (x < 0 && z > 0) {
+                        percent_x = multiply * base_percent;
+                        percent_z = -multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.z = start;
+                    } else if (x == 0 && z > 0) {
+                        percent_x = 0;
+                        percent_z = -multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.x = start;
+                        RUBIK_CUBE.childNodes[i].dataset.z = end - 1;
+                    } else if (x > 0 && z > 0) {
+                        percent_x = -multiply * base_percent;
+                        percent_z = -multiply * base_percent;
+                        RUBIK_CUBE.childNodes[i].dataset.x = start;
+                    }
+
+                    let translation_matrix = get_translate_matrix (
+                        RUBIK_LENGTH * (percent_x / 100),
+                        0,
+                        RUBIK_LENGTH * (percent_z / 100),
+                    );
+                    
+                    let inverse_translation_matrix = get_inversed_matrix(translation_matrix);
+
+                    let base_matrix = string_matrix_to_array_matrix(
+                        RUBIK_CUBE.childNodes[i].style.transform
+                    );
+
+                    let rotation_y_matrix = get_rotation_y_matrix(90);
+
+                    let result_matrix;
+
+                    let matrix_1;
+                    let matrix_2;
+
+                    // (rotated matrix) = (inverser translation matrix) * (rotation_matrix) * (translation matrix) * (base matrix)
+
+                    matrix_1 = matrix_multiply_matrix(
+                        inverse_translation_matrix,
+                        rotation_y_matrix
+                    );
+
+                    matrix_2 = matrix_multiply_matrix(
+                        matrix_1,
+                        translation_matrix
+                    );
+
+                    result_matrix = matrix_multiply_matrix(
+                        matrix_2,
+                        base_matrix
+                    );
+
+                    console.log( "------------------------------------" );
+
+                    console.log( "inverse_translation_matrix" );
+                    console.log(inverse_translation_matrix + "");
+                    
+                    console.log( "rotation_y_matrix" );
+                    console.log(rotation_y_matrix + "");
+
+                    console.log( "matrix_1" );
+                    console.log(matrix_1 + "");
+                    
+                    console.log( "translation_matrix" );
+                    console.log(translation_matrix + "");
+
+                    console.log( "matrix_2" );
+                    console.log(matrix_2 + "");
+
+                    console.log( "base_matrix" );
+                    console.log( base_matrix + "" );
+                    
+                    console.log( "result_matrix" );
+                    console.log( result_matrix + "" );
+
+                    RUBIK_CUBE.childNodes[i].style.transform = array_matrix_to_string_matrix(
+                        result_matrix
+                    ).replace('-0', '0');
+                }
+            }
+        });
+
+        // ------------------------------------------------------------------------------
+
+        // TO DO: make rotation go smoothly
+
+        // rotate_U_button.addEventListener("click", e => {
+        //     let cubies_list = [];
+
+        //     for (let i = 0; i < RUBIK_CUBE.childNodes.length; i++) {
+        //         let y = RUBIK_CUBE.childNodes[i].dataset.y;
+                
+        //         if (y == start) {
+        //             cubies_list.push(RUBIK_CUBE.childNodes[i]);
+        //         }        
+        //     }
+
+        //     animate_the_rotation(cubies_list);
+        // });
+
+        // async function animate_the_rotation(cubies_list = []) {
+        //     for (let i = 0; i < cubies_list.length; i++) {
+        //         let x = cubies_list[i].dataset.x;
+        //         let y = cubies_list[i].dataset.y;
+        //         let z = cubies_list[i].dataset.z;
+
+        //         let base_percent = 50;
+        //         let multiply = RUBIK_SIZE - 1;
+
+        //         if (x > 0)
+        //             percent_x = -multiply * base_percent;
+        //         else if (x < 0)
+        //             percent_x = multiply * base_percent;
+        //         else
+        //             percent_x = 0;
+
+        //         if (z > 0)
+        //             percent_z = -multiply * base_percent;
+        //         else if (z < 0)
+        //             percent_z = multiply * base_percent;
+        //         else
+        //             percent_z = 0;
+
+        //         let translation_matrix = get_translate_matrix(
+        //             RUBIK_LENGTH * (percent_x / 100),
+        //             0,
+        //             RUBIK_LENGTH * (percent_z / 100),
+        //         );
+                
+        //         let inverse_translation_matrix = get_inversed_matrix( translation_matrix );
+
+        //         let base_matrix = string_matrix_to_array_matrix(
+        //             cubies_list[i].style.transform
+        //         );
+
+        //         let result_matrix;
+
+        //         for (let j = 0; j <= 90; j += 0.5) {
+        //             let rotation_y_matrix = get_rotation_y_matrix(j);
+
+        //             let matrix_1 = matrix_multiply_matrix(
+        //                 inverse_translation_matrix,
+        //                 rotation_y_matrix
+        //             );
+
+        //             let matrix_2 = matrix_multiply_matrix(
+        //                 matrix_1,
+        //                 translation_matrix
+        //             );
+
+        //             result_matrix = matrix_multiply_matrix(
+        //                 matrix_2,
+        //                 base_matrix
+        //             );
+
+        //             // cubies_list[i].style.transform = array_matrix_to_string_matrix(
+        //             //     result_matrix
+        //             // );
+
+        //             const anim = cubies_list[i].animate(
+        //                 [
+        //                 //   { transform: base_matrix, offset: 0.0 }, 
+        //                     { transform: array_matrix_to_string_matrix( result_matrix ), offset: 1.0 }
+        //                 ],
+        //                 {
+        //                     duration: 10000, 
+        //                     easing: "ease-in",
+        //                     fill: "forwards",
+        //                 }
+        //             );
+
+        //             anim.play();
+        //         }
+        //     }
+        // }
+    </script>
 </body>
 </html>
